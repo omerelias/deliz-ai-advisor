@@ -1,0 +1,34 @@
+/**
+ * Deliz AI Advisor — admin settings styles
+ */
+
+.deliz-ai-settings .nav-tab-wrapper {
+	margin-top: 12px;
+}
+
+.deliz-ai-settings .form-table th {
+	width: 220px;
+}
+
+.deliz-ai-settings .deliz-test-result {
+	display: inline-block;
+	margin-left: 12px;
+	font-weight: 600;
+	min-height: 1.4em;
+}
+
+.deliz-ai-settings .deliz-test-result.is-ok {
+	color: #008a20;
+}
+
+.deliz-ai-settings .deliz-test-result.is-fail {
+	color: #d63638;
+}
+
+.deliz-ai-settings .deliz-test-result.is-loading {
+	color: #50575e;
+}
+
+.deliz-ai-settings .notice.inline {
+	margin: 16px 0;
+}

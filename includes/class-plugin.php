@@ -29,6 +29,11 @@ final class Plugin {
 	public $i18n;
 
 	/**
+	 * @var Admin\Admin|null
+	 */
+	public $admin = null;
+
+	/**
 	 * Get the singleton instance.
 	 */
 	public static function instance(): Plugin {
@@ -54,10 +59,14 @@ final class Plugin {
 			return;
 		}
 
+		if ( is_admin() ) {
+			$this->admin = new Admin\Admin();
+			$this->admin->register();
+		}
+
 		/*
 		 * Future phases hook additional subsystems here:
-		 * - Phase 2: Admin, SettingsPage
-		 * - Phase 3: Encryption, AnthropicClient
+		 * - Phase 3: AnthropicClient + test-key REST route
 		 * - Phase 4: REST Controller, ChatEndpoint
 		 * - Phase 5: Widget, Assets
 		 * - ...
