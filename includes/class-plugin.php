@@ -34,6 +34,11 @@ final class Plugin {
 	public $admin = null;
 
 	/**
+	 * @var Api\RestController|null
+	 */
+	public $rest = null;
+
+	/**
 	 * Get the singleton instance.
 	 */
 	public static function instance(): Plugin {
@@ -64,12 +69,15 @@ final class Plugin {
 			$this->admin->register();
 		}
 
+		// REST (always registered — test-key/chat/feedback all live here).
+		$this->rest = new Api\RestController();
+		$this->rest->register();
+
 		/*
 		 * Future phases hook additional subsystems here:
-		 * - Phase 3: AnthropicClient + test-key REST route
-		 * - Phase 4: REST Controller, ChatEndpoint
 		 * - Phase 5: Widget, Assets
-		 * - ...
+		 * - Phase 13: Conversion tracking
+		 * - Phase 15: GitHub updater
 		 */
 	}
 }
