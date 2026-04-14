@@ -39,6 +39,16 @@ final class Plugin {
 	public $rest = null;
 
 	/**
+	 * @var Frontend\Widget|null
+	 */
+	public $widget = null;
+
+	/**
+	 * @var Frontend\Assets|null
+	 */
+	public $assets = null;
+
+	/**
 	 * Get the singleton instance.
 	 */
 	public static function instance(): Plugin {
@@ -73,9 +83,17 @@ final class Plugin {
 		$this->rest = new Api\RestController();
 		$this->rest->register();
 
+		// Frontend widget.
+		if ( ! is_admin() ) {
+			$this->widget = new Frontend\Widget();
+			$this->widget->register();
+
+			$this->assets = new Frontend\Assets( $this->widget );
+			$this->assets->register();
+		}
+
 		/*
 		 * Future phases hook additional subsystems here:
-		 * - Phase 5: Widget, Assets
 		 * - Phase 13: Conversion tracking
 		 * - Phase 15: GitHub updater
 		 */
