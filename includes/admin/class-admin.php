@@ -37,6 +37,8 @@ class Admin {
 		$this->settings_page = new SettingsPage();
 		$this->logs_page     = new LogsPage();
 		$this->stats_page    = new StatsPage();
+
+		( new Onboarding() )->register();
 	}
 
 	/**
