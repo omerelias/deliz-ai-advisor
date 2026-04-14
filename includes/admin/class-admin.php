@@ -18,12 +18,18 @@ class Admin {
 	 */
 	public $settings_page;
 
+	/**
+	 * @var LogsPage
+	 */
+	public $logs_page;
+
 	public function register(): void {
 		add_action( 'admin_menu', array( $this, 'register_menu' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
 		add_action( 'admin_init', array( $this, 'handle_settings_save' ) );
 
 		$this->settings_page = new SettingsPage();
+		$this->logs_page     = new LogsPage();
 	}
 
 	/**
@@ -68,7 +74,7 @@ class Admin {
 			__( 'Conversation Log', 'deliz-ai-advisor' ),
 			'manage_options',
 			self::MENU_SLUG . '-logs',
-			array( $this, 'render_logs_placeholder' )
+			array( $this->logs_page, 'render' )
 		);
 	}
 
@@ -77,10 +83,6 @@ class Admin {
 		echo '<p>' . esc_html__( 'Coming in Phase 12.', 'deliz-ai-advisor' ) . '</p></div>';
 	}
 
-	public function render_logs_placeholder(): void {
-		echo '<div class="wrap"><h1>' . esc_html__( 'Conversation Log', 'deliz-ai-advisor' ) . '</h1>';
-		echo '<p>' . esc_html__( 'Coming in Phase 6.', 'deliz-ai-advisor' ) . '</p></div>';
-	}
 
 	/**
 	 * Enqueue admin CSS/JS only on plugin pages.
