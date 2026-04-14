@@ -9,6 +9,8 @@ namespace Deliz\AI\Advisor\Admin;
 
 use Deliz\AI\Advisor\Models\Settings;
 use Deliz\AI\Advisor\Services\Encryption;
+use Deliz\AI\Advisor\Services\RateLimiter;
+use Deliz\AI\Advisor\Services\ResponseCache;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -122,10 +124,60 @@ class SettingsPage {
 			case 'general':
 				$this->save_general( $post );
 				break;
-			/*
-			 * Other tabs persist in later phases — intentionally no-op now.
-			 */
+			case 'appearance':
+				$this->save_appearance( $post );
+				break;
+			case 'content':
+				$this->save_content( $post );
+				break;
+			case 'behavior':
+				$this->save_behavior( $post );
+				break;
+			case 'prompts':
+				$this->save_prompts( $post );
+				break;
+			case 'advanced':
+				$this->save_advanced( $post );
+				break;
 		}
+	}
+
+	/**
+	 * Handle maintenance actions (clear cache / rate limits).
+	 * Called from Admin on `admin_init`.
+	 */
+	public static function handle_maintenance_action(): void {
+		if ( ! isset( $_GET['deliz_action'] ) ) {
+			return;
+		}
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+		check_admin_referer( 'deliz_ai_admin_action' );
+
+		$action = sanitize_key( wp_unslash( $_GET['deliz_action'] ) );
+		$msg    = '';
+
+		if ( 'clear_cache' === $action ) {
+			$count = ResponseCache::clear();
+			$msg   = sprintf( /* translators: %d: rows deleted */ __( 'Cache cleared (%d rows).', 'deliz-ai-advisor' ), $count );
+		} elseif ( 'clear_rate' === $action ) {
+			RateLimiter::clear_all();
+			$msg = __( 'Rate limits cleared.', 'deliz-ai-advisor' );
+		}
+
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'             => Admin::MENU_SLUG,
+					'tab'              => 'advanced',
+					'settings-updated' => 'true',
+					'deliz_notice'     => rawurlencode( $msg ),
+				),
+				admin_url( 'admin.php' )
+			)
+		);
+		exit;
 	}
 
 	/**
@@ -165,5 +217,116 @@ class SettingsPage {
 		$values['max_tokens_per_response'] = max( 50, min( 4096, $values['max_tokens_per_response'] ) );
 
 		Settings::save_group( 'general', $values );
+	}
+
+	/**
+	 * @param array<string,mixed> $post
+	 */
+	private function save_appearance( array $post ): void {
+		$input = isset( $post['appearance'] ) && is_array( $post['appearance'] ) ? wp_unslash( $post['appearance'] ) : array();
+		$current = Settings::group( 'appearance' );
+
+		$positions = array( 'bottom-right', 'bottom-left' );
+		$shadows   = array( 'none', 'light', 'medium', 'heavy' );
+
+		$values = array(
+			'position'               => in_array( $input['position'] ?? '', $positions, true ) ? $input['position'] : 'bottom-right',
+			'primary_color'          => $this->sanitize_hex( $input['primary_color']          ?? $current['primary_color'] ),
+			'primary_text_color'     => $this->sanitize_hex( $input['primary_text_color']     ?? $current['primary_text_color'] ),
+			'background_color'       => $this->sanitize_hex( $input['background_color']       ?? $current['background_color'] ),
+			'text_color'             => $this->sanitize_hex( $input['text_color']             ?? $current['text_color'] ),
+			'user_bubble_color'      => $this->sanitize_hex( $input['user_bubble_color']      ?? $current['user_bubble_color'] ),
+			'user_text_color'        => $this->sanitize_hex( $input['user_text_color']        ?? $current['user_text_color'] ),
+			'assistant_bubble_color' => $this->sanitize_hex( $input['assistant_bubble_color'] ?? $current['assistant_bubble_color'] ),
+			'assistant_text_color'   => $this->sanitize_hex( $input['assistant_text_color']   ?? $current['assistant_text_color'] ),
+			'font_family'            => sanitize_text_field( $input['font_family']            ?? 'inherit' ),
+			'border_radius'          => max( 0, min( 32, (int) ( $input['border_radius']      ?? 16 ) ) ),
+			'panel_width'            => max( 300, min( 600, (int) ( $input['panel_width']     ?? 380 ) ) ),
+			'panel_height'           => max( 380, min( 900, (int) ( $input['panel_height']    ?? 560 ) ) ),
+			'shadow_intensity'       => in_array( $input['shadow_intensity'] ?? '', $shadows, true ) ? $input['shadow_intensity'] : 'medium',
+			'show_branding'          => ! empty( $input['show_branding'] ),
+		);
+
+		Settings::save_group( 'appearance', $values );
+	}
+
+	/**
+	 * @param array<string,mixed> $post
+	 */
+	private function save_content( array $post ): void {
+		$input = isset( $post['content'] ) && is_array( $post['content'] ) ? wp_unslash( $post['content'] ) : array();
+
+		$values = array();
+		foreach ( array( 'he', 'ru', 'ar', 'en' ) as $code ) {
+			$values[ "title_{$code}" ]       = isset( $input[ "title_{$code}" ] ) ? sanitize_text_field( $input[ "title_{$code}" ] ) : '';
+			$values[ "greeting_{$code}" ]    = isset( $input[ "greeting_{$code}" ] ) ? sanitize_textarea_field( $input[ "greeting_{$code}" ] ) : '';
+			$values[ "placeholder_{$code}" ] = isset( $input[ "placeholder_{$code}" ] ) ? sanitize_text_field( $input[ "placeholder_{$code}" ] ) : '';
+
+			$qs = isset( $input[ "suggested_questions_{$code}" ] ) && is_array( $input[ "suggested_questions_{$code}" ] )
+				? array_values( array_filter( array_map( 'sanitize_text_field', $input[ "suggested_questions_{$code}" ] ) ) )
+				: array();
+			$values[ "suggested_questions_{$code}" ] = array_slice( $qs, 0, 3 );
+		}
+
+		Settings::save_group( 'content', $values );
+	}
+
+	/**
+	 * @param array<string,mixed> $post
+	 */
+	private function save_behavior( array $post ): void {
+		$input = isset( $post['behavior'] ) && is_array( $post['behavior'] ) ? wp_unslash( $post['behavior'] ) : array();
+		$langs = isset( $input['enabled_languages'] ) && is_array( $input['enabled_languages'] )
+			? array_values( array_intersect( array_map( 'sanitize_key', $input['enabled_languages'] ), array( 'he', 'ru', 'ar', 'en' ) ) )
+			: array( 'he', 'ru', 'ar', 'en' );
+
+		$values = array(
+			'rate_limit_per_ip_per_hour'          => max( 0, min( 1000, (int) ( $input['rate_limit_per_ip_per_hour'] ?? 10 ) ) ),
+			'max_message_length'                  => max( 50, min( 2000, (int) ( $input['max_message_length'] ?? 500 ) ) ),
+			'enable_cache'                        => ! empty( $input['enable_cache'] ),
+			'cache_ttl_days'                      => max( 1, min( 365, (int) ( $input['cache_ttl_days'] ?? 7 ) ) ),
+			'enabled_languages'                   => ! empty( $langs ) ? $langs : array( 'he' ),
+			'default_language'                    => in_array( ( $input['default_language'] ?? 'he' ), array( 'he', 'ru', 'ar', 'en' ), true ) ? $input['default_language'] : 'he',
+			'show_feedback_buttons'               => ! empty( $input['show_feedback_buttons'] ),
+			'include_related_products_in_context' => ! empty( $input['include_related_products_in_context'] ),
+			'max_related_products'                => max( 1, min( 20, (int) ( $input['max_related_products'] ?? 8 ) ) ),
+		);
+		Settings::save_group( 'behavior', $values );
+	}
+
+	/**
+	 * @param array<string,mixed> $post
+	 */
+	private function save_prompts( array $post ): void {
+		$input = isset( $post['prompts'] ) && is_array( $post['prompts'] ) ? wp_unslash( $post['prompts'] ) : array();
+
+		$values = array(
+			'system_prompt_template' => isset( $input['system_prompt_template'] ) ? wp_kses_post( $input['system_prompt_template'] ) : '',
+		);
+		foreach ( array( 'he', 'ru', 'ar', 'en' ) as $code ) {
+			$values[ "off_topic_response_{$code}" ] = isset( $input[ "off_topic_response_{$code}" ] )
+				? sanitize_text_field( $input[ "off_topic_response_{$code}" ] )
+				: '';
+		}
+		Settings::save_group( 'prompts', $values );
+	}
+
+	/**
+	 * @param array<string,mixed> $post
+	 */
+	private function save_advanced( array $post ): void {
+		$input = isset( $post['advanced'] ) && is_array( $post['advanced'] ) ? wp_unslash( $post['advanced'] ) : array();
+		$values = array(
+			'debug_mode'                => ! empty( $input['debug_mode'] ),
+			'log_all_requests'          => ! empty( $input['log_all_requests'] ),
+			'anonymize_ips_after_days'  => max( 0, min( 3650, (int) ( $input['anonymize_ips_after_days'] ?? 30 ) ) ),
+			'delete_logs_after_days'    => max( 0, min( 3650, (int) ( $input['delete_logs_after_days'] ?? 365 ) ) ),
+			'delete_data_on_uninstall'  => ! empty( $input['delete_data_on_uninstall'] ),
+		);
+		Settings::save_group( 'advanced', $values );
+	}
+
+	private function sanitize_hex( string $hex ): string {
+		return preg_match( '/^#[0-9a-f]{3,8}$/i', $hex ) ? $hex : '#000000';
 	}
 }

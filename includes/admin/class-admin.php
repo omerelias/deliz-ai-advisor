@@ -27,6 +27,7 @@ class Admin {
 		add_action( 'admin_menu', array( $this, 'register_menu' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
 		add_action( 'admin_init', array( $this, 'handle_settings_save' ) );
+		add_action( 'admin_init', array( 'Deliz\\AI\\Advisor\\Admin\\SettingsPage', 'handle_maintenance_action' ) );
 
 		$this->settings_page = new SettingsPage();
 		$this->logs_page     = new LogsPage();

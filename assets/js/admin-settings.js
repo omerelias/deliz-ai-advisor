@@ -10,7 +10,46 @@
 
 	document.addEventListener('DOMContentLoaded', function () {
 		initTestKey();
+		initColorPickers();
+		initCopyFromHebrew();
 	});
+
+	function initColorPickers() {
+		if (typeof jQuery === 'undefined' || !jQuery.fn.wpColorPicker) return;
+		jQuery('.deliz-ai-color').wpColorPicker();
+	}
+
+	function initCopyFromHebrew() {
+		const btn = document.getElementById('deliz-copy-from-hebrew');
+		if (!btn) return;
+		btn.addEventListener('click', function () {
+			if (!confirm('Copy Hebrew values to RU / AR / EN? This will overwrite their current values.')) return;
+
+			// For every Hebrew field, find its sibling fields and copy.
+			const form = document.querySelector('.deliz-ai-form');
+			if (!form) return;
+
+			const heFields = form.querySelectorAll('[name^="content[title_he]"], [name^="content[greeting_he]"], [name^="content[placeholder_he]"], [name="content[suggested_questions_he][]"]');
+
+			heFields.forEach((el) => {
+				const name = el.getAttribute('name');
+				const match = name.match(/^content\[(title|greeting|placeholder)_he\]$/);
+				if (match) {
+					['ru', 'ar', 'en'].forEach((code) => {
+						const tgt = form.querySelector('[name="content[' + match[1] + '_' + code + ']"]');
+						if (tgt) tgt.value = el.value;
+					});
+				}
+			});
+
+			// Suggested questions arrays.
+			const heQs = Array.from(form.querySelectorAll('[name="content[suggested_questions_he][]"]')).map(i => i.value);
+			['ru', 'ar', 'en'].forEach((code) => {
+				const targets = form.querySelectorAll('[name="content[suggested_questions_' + code + '][]"]');
+				targets.forEach((el, i) => { el.value = heQs[i] || ''; });
+			});
+		});
+	}
 
 	function initTestKey() {
 		const btn = document.getElementById('deliz-test-key');
