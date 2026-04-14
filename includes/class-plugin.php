@@ -96,9 +96,10 @@ final class Plugin {
 		$tracker = new Services\ConversionTracker();
 		$tracker->register();
 
-		/*
-		 * Future phases hook additional subsystems here:
-		 * - Phase 15: GitHub updater
-		 */
+		// GitHub self-updater (Phase 15) — admin only to avoid frontend overhead.
+		if ( is_admin() ) {
+			$updater = new Updater\GithubUpdater();
+			$updater->register();
+		}
 	}
 }
