@@ -23,6 +23,11 @@ class Admin {
 	 */
 	public $logs_page;
 
+	/**
+	 * @var StatsPage
+	 */
+	public $stats_page;
+
 	public function register(): void {
 		add_action( 'admin_menu', array( $this, 'register_menu' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
@@ -31,6 +36,7 @@ class Admin {
 
 		$this->settings_page = new SettingsPage();
 		$this->logs_page     = new LogsPage();
+		$this->stats_page    = new StatsPage();
 	}
 
 	/**
@@ -66,7 +72,7 @@ class Admin {
 			__( 'Statistics', 'deliz-ai-advisor' ),
 			'manage_options',
 			self::MENU_SLUG . '-stats',
-			array( $this, 'render_stats_placeholder' )
+			array( $this->stats_page, 'render' )
 		);
 
 		add_submenu_page(
@@ -79,10 +85,6 @@ class Admin {
 		);
 	}
 
-	public function render_stats_placeholder(): void {
-		echo '<div class="wrap"><h1>' . esc_html__( 'Statistics', 'deliz-ai-advisor' ) . '</h1>';
-		echo '<p>' . esc_html__( 'Coming in Phase 12.', 'deliz-ai-advisor' ) . '</p></div>';
-	}
 
 
 	/**
