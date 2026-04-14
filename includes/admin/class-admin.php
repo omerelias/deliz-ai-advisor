@@ -101,14 +101,14 @@ class Admin {
 			'deliz-ai-admin',
 			DELIZ_AI_PLUGIN_URL . 'assets/css/admin-settings.css',
 			array(),
-			DELIZ_AI_VERSION
+			self::asset_version( 'assets/css/admin-settings.css' )
 		);
 
 		wp_enqueue_script(
 			'deliz-ai-admin',
 			DELIZ_AI_PLUGIN_URL . 'assets/js/admin-settings.js',
 			array( 'wp-color-picker' ),
-			DELIZ_AI_VERSION,
+			self::asset_version( 'assets/js/admin-settings.js' ),
 			true
 		);
 
@@ -128,6 +128,19 @@ class Admin {
 				),
 			)
 		);
+	}
+
+	/**
+	 * Cache-bust admin assets under WP_DEBUG.
+	 */
+	private static function asset_version( string $relative_path ): string {
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			$abs = DELIZ_AI_PLUGIN_DIR . $relative_path;
+			if ( file_exists( $abs ) ) {
+				return (string) filemtime( $abs );
+			}
+		}
+		return DELIZ_AI_VERSION;
 	}
 
 	/**

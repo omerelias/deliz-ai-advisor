@@ -1,6 +1,10 @@
 <?php
 /**
- * Outputs the chat widget HTML in wp_footer on qualifying pages.
+ * Outputs the chat widget HTML in wp_footer.
+ *
+ * For themes with quick-view popups (like deliz-short's `ed-product-popup`),
+ * the widget is rendered on every shop-ish page but starts hidden; JS watches
+ * for the popup opening and shows the bubble with the right product_id.
  *
  * @package Deliz\AI\Advisor\Frontend
  */
@@ -19,6 +23,10 @@ class Widget {
 
 	/**
 	 * Should the widget render on the current page?
+	 *
+	 * With popup-driven themes we render the widget *container* anywhere that
+	 * products might be opened (home/shop/category + real product pages).
+	 * Actual visibility is controlled by JS based on popup state.
 	 */
 	public function should_render(): bool {
 		$general = Settings::group( 'general' );
@@ -28,30 +36,26 @@ class Widget {
 		if ( empty( Settings::api_key() ) ) {
 			return false;
 		}
-		if ( ! function_exists( 'is_product' ) ) {
-			return false;
-		}
 
 		$enable_on = (array) ( $general['enable_on'] ?? array() );
 
-		if ( in_array( 'product', $enable_on, true ) && is_product() ) {
-			// Check excluded categories.
-			$excluded = (array) ( $general['excluded_categories'] ?? array() );
-			if ( ! empty( $excluded ) ) {
-				$product_id = get_queried_object_id();
-				$terms      = wp_get_post_terms( $product_id, 'product_cat', array( 'fields' => 'ids' ) );
-				if ( is_array( $terms ) && array_intersect( $terms, array_map( 'absint', $excluded ) ) ) {
-					return false;
-				}
-			}
+		// Classic WC single product page.
+		if ( function_exists( 'is_product' ) && is_product() && in_array( 'product', $enable_on, true ) ) {
 			return true;
 		}
 
-		if ( in_array( 'category', $enable_on, true ) && is_product_category() ) {
+		// Category / shop / home — popup-driven themes open products from here.
+		if ( function_exists( 'is_product_category' ) && is_product_category() && in_array( 'category', $enable_on, true ) ) {
+			return true;
+		}
+		if ( function_exists( 'is_shop' ) && is_shop() && in_array( 'shop', $enable_on, true ) ) {
 			return true;
 		}
 
-		if ( in_array( 'shop', $enable_on, true ) && is_shop() ) {
+		// Detect the deliz-short virtual shop shell (front page / home when body
+		// will carry the popup container). Any page where the popup JS is loaded
+		// should qualify — we fall back to the body-class heuristic via JS.
+		if ( ( is_home() || is_front_page() ) && in_array( 'shop', $enable_on, true ) ) {
 			return true;
 		}
 
@@ -81,9 +85,9 @@ class Widget {
 			$suggestions = array();
 		}
 
+		// If we happen to land on a real product page, seed the id; otherwise 0.
 		$product_id = function_exists( 'is_product' ) && is_product() ? (int) get_queried_object_id() : 0;
 
-		// Build CSS vars from settings.
 		$css_vars = $this->build_css_vars( $appearance );
 
 		?>
@@ -94,11 +98,15 @@ class Widget {
 		</style>
 		<div
 			id="deliz-ai-widget"
-			class="deliz-ai-widget deliz-ai-widget--<?php echo esc_attr( $appearance['position'] ?? 'bottom-right' ); ?>"
+			class="deliz-ai-widget deliz-ai-widget--<?php echo esc_attr( $appearance['position'] ?? 'bottom-right' ); ?> deliz-ai-widget--hidden"
 			data-dir="<?php echo esc_attr( $rtl ? 'rtl' : 'ltr' ); ?>"
 			data-lang="<?php echo esc_attr( $lang ); ?>"
 			data-product-id="<?php echo esc_attr( $product_id ); ?>"
+			data-greeting="<?php echo esc_attr( $greeting ); ?>"
+			data-placeholder="<?php echo esc_attr( $placeholder ); ?>"
+			data-title="<?php echo esc_attr( $title ); ?>"
 			aria-live="polite"
+			hidden
 		>
 			<!-- Closed state: bubble -->
 			<button
@@ -111,7 +119,7 @@ class Widget {
 				</svg>
 			</button>
 
-			<!-- Open state: panel (hidden by default) -->
+			<!-- Open state: panel -->
 			<div class="deliz-ai-panel" role="dialog" aria-labelledby="deliz-ai-title" hidden>
 				<header class="deliz-ai-panel__header">
 					<span class="deliz-ai-panel__title" id="deliz-ai-title"><?php echo esc_html( $title ); ?></span>
@@ -123,19 +131,7 @@ class Widget {
 				</header>
 
 				<div class="deliz-ai-panel__messages" role="log" aria-live="polite">
-					<div class="deliz-ai-msg deliz-ai-msg--assistant deliz-ai-msg--greeting">
-						<?php echo esc_html( $greeting ); ?>
-					</div>
-
-					<?php if ( ! empty( $suggestions ) ) : ?>
-						<div class="deliz-ai-suggestions">
-							<?php foreach ( $suggestions as $q ) : ?>
-								<button type="button" class="deliz-ai-chip" data-question="<?php echo esc_attr( $q ); ?>">
-									<?php echo esc_html( $q ); ?>
-								</button>
-							<?php endforeach; ?>
-						</div>
-					<?php endif; ?>
+					<!-- messages are rendered by JS so we can reset on product change -->
 				</div>
 
 				<form class="deliz-ai-panel__input">
@@ -159,12 +155,20 @@ class Widget {
 				<?php endif; ?>
 			</div>
 		</div>
+
+		<!-- Suggested questions template (cloned by JS per product) -->
+		<template id="deliz-ai-suggestions-template">
+			<div class="deliz-ai-suggestions">
+				<?php foreach ( $suggestions as $q ) : ?>
+					<button type="button" class="deliz-ai-chip" data-question="<?php echo esc_attr( $q ); ?>">
+						<?php echo esc_html( $q ); ?>
+					</button>
+				<?php endforeach; ?>
+			</div>
+		</template>
 		<?php
 	}
 
-	/**
-	 * Build CSS custom properties from settings.
-	 */
 	private function build_css_vars( array $a ): string {
 		$shadow = array(
 			'none'   => 'none',
@@ -195,10 +199,6 @@ class Widget {
 		return preg_match( '/^#[0-9a-f]{3,8}$/i', $hex ) ? $hex : '#000';
 	}
 
-	/**
-	 * Best guess at the page language for initial UI labels.
-	 * (Actual chat language detection happens per-message server-side.)
-	 */
 	private function current_language( array $behavior ): string {
 		$default = (string) ( $behavior['default_language'] ?? 'he' );
 		$locale  = determine_locale();

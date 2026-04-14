@@ -35,14 +35,14 @@ class Assets {
 			'deliz-ai-widget',
 			DELIZ_AI_PLUGIN_URL . 'assets/css/chat-widget.css',
 			array(),
-			DELIZ_AI_VERSION
+			self::asset_version( 'assets/css/chat-widget.css' )
 		);
 
 		wp_enqueue_script(
 			'deliz-ai-widget',
 			DELIZ_AI_PLUGIN_URL . 'assets/js/chat-widget.js',
 			array(),
-			DELIZ_AI_VERSION,
+			self::asset_version( 'assets/js/chat-widget.js' ),
 			true
 		);
 
@@ -67,5 +67,19 @@ class Assets {
 				),
 			)
 		);
+	}
+
+	/**
+	 * Cache-bust: use filemtime under WP_DEBUG for zero-caching dev reloads,
+	 * otherwise stick with the plugin version so production still caches.
+	 */
+	private static function asset_version( string $relative_path ): string {
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			$abs = DELIZ_AI_PLUGIN_DIR . $relative_path;
+			if ( file_exists( $abs ) ) {
+				return (string) filemtime( $abs );
+			}
+		}
+		return DELIZ_AI_VERSION;
 	}
 }

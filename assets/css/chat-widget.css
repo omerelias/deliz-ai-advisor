@@ -13,6 +13,12 @@
 .deliz-ai-widget--bottom-right { right: 20px; bottom: 20px; }
 .deliz-ai-widget--bottom-left  { left: 20px;  bottom: 20px; }
 
+/* Hidden until a product popup opens */
+.deliz-ai-widget--hidden { display: none !important; }
+
+/* When the ed-product-popup is open, lift the bubble above its overlay */
+body.popup-open .deliz-ai-widget { z-index: 100000; }
+
 /* ---------- Bubble (closed) ---------- */
 .deliz-ai-bubble {
 	width: 60px;
