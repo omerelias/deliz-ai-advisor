@@ -92,9 +92,12 @@ final class Plugin {
 			$this->assets->register();
 		}
 
+		// Conversion tracking (Phase 13) — requires WooCommerce, already guarded above.
+		$tracker = new Services\ConversionTracker();
+		$tracker->register();
+
 		/*
 		 * Future phases hook additional subsystems here:
-		 * - Phase 13: Conversion tracking
 		 * - Phase 15: GitHub updater
 		 */
 	}

@@ -247,6 +247,13 @@
 			id = uuidv4();
 			sessionStorage.setItem(STORAGE_KEY, id);
 		}
+		// Mirror into a cookie so server-side WC hooks can attribute conversions.
+		// 30-minute TTL matches conversation_timeout_minutes default.
+		try {
+			const maxAge = 30 * 60;
+			document.cookie = 'deliz_ai_sid=' + encodeURIComponent(id)
+				+ '; path=/; max-age=' + maxAge + '; SameSite=Lax';
+		} catch (e) { /* ignore */ }
 		return id;
 	}
 	function loadHistory() {
